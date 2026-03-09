@@ -15,6 +15,7 @@ k9.workspace = true
 gl_generator.workspace = true
 
 [features]
+default = []
 wayland = []
 
 [dependencies]
@@ -57,3 +58,6 @@ objc.workspace = true
 objc2-core-graphics.workspace = true
 plist.workspace = true
 shlex.workspace = true
+
+[target.'cfg(target_os="linux")'.dependencies]
+xkbcommon = { version = "0.9", optional = true }
