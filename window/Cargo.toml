@@ -16,7 +16,7 @@ gl_generator.workspace = true
 
 [features]
 default = []
-wayland = []
+wayland = ["dep:wayland-egl"]
 
 [dependencies]
 async-channel.workspace = true
@@ -62,3 +62,4 @@ shlex.workspace = true
 
 [target.'cfg(target_os="linux")'.dependencies]
 xkbcommon = { version = "0.9", optional = true }
+wayland-egl = { workspace = true, optional = true }

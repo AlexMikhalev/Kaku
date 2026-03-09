@@ -1,21 +1,39 @@
 use async_trait::async_trait;
+use promise::Future;
 use std::any::Any;
 use std::rc::Rc;
 
-pub struct Window;
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
+pub struct Window {
+    id: usize,
+}
 
 impl Window {
     pub fn new(
         _config: &crate::os::linux::Connection,
     ) -> anyhow::Result<Box<dyn crate::WindowOps>> {
-        Ok(Box::new(Window))
+        Ok(Box::new(Window { id: 0 }))
     }
 
     pub fn create_terminal_window(
         _config: &crate::os::linux::Connection,
         _geometry: crate::parameters::Parameters,
     ) -> anyhow::Result<Box<dyn crate::WindowOps>> {
-        Ok(Box::new(Window))
+        Ok(Box::new(Window { id: 0 }))
+    }
+
+    pub async fn new_window<F>(
+        _class_name: &str,
+        _name: &str,
+        _geometry: crate::RequestedWindowGeometry,
+        _config: Option<&config::ConfigHandle>,
+        _font_config: Rc<wezterm_font::FontConfiguration>,
+        _event_handler: F,
+    ) -> anyhow::Result<Window>
+    where
+        F: 'static + FnMut(crate::WindowEvent, &Window),
+    {
+        Ok(Window { id: 0 })
     }
 }
 
@@ -61,15 +79,12 @@ impl crate::WindowOps for Window {
 
     fn set_text_cursor_position(&self, _cursor: crate::Rect) {}
 
-    fn get_clipboard(&self, _clipboard: crate::Clipboard) -> promise::Future<String> {
-        Box::pin(async { Ok(String::new()) })
+    fn get_clipboard(&self, _clipboard: crate::Clipboard) -> Future<String> {
+        Future::ok(String::new())
     }
 
-    fn get_clipboard_data(
-        &self,
-        _clipboard: crate::Clipboard,
-    ) -> promise::Future<crate::ClipboardData> {
-        Box::pin(async { Ok(crate::ClipboardData::try_from(String::new()).unwrap_or_default()) })
+    fn get_clipboard_data(&self, _clipboard: crate::Clipboard) -> Future<crate::ClipboardData> {
+        Future::ok(crate::ClipboardData::Text(String::new()))
     }
 
     fn set_clipboard(&self, _clipboard: crate::Clipboard, _text: String) {}
@@ -100,6 +115,22 @@ impl crate::WindowOps for Window {
         _window_state: crate::WindowState,
     ) -> anyhow::Result<Option<crate::os::parameters::Parameters>> {
         Ok(None)
+    }
+}
+
+impl raw_window_handle::HasWindowHandle for Window {
+    fn window_handle(
+        &self,
+    ) -> Result<raw_window_handle::WindowHandle<'_>, raw_window_handle::HandleError> {
+        Err(raw_window_handle::HandleError::Unavailable)
+    }
+}
+
+impl raw_window_handle::HasDisplayHandle for Window {
+    fn display_handle(
+        &self,
+    ) -> Result<raw_window_handle::DisplayHandle<'_>, raw_window_handle::HandleError> {
+        Err(raw_window_handle::HandleError::Unavailable)
     }
 }
 

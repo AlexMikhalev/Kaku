@@ -1,12 +1,10 @@
-use std::rc::Rc;
-
 pub struct LinuxConnection {
     // Empty for now - would need X11/Wayland connection
 }
 
 impl LinuxConnection {
-    pub fn create_new() -> anyhow::Result<Rc<Self>> {
-        Ok(Rc::new(Self))
+    pub fn create_new() -> anyhow::Result<Self> {
+        Ok(Self {})
     }
 }
 
