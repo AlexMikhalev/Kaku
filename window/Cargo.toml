@@ -48,6 +48,7 @@ wezterm-bidi.workspace = true
 wezterm-color-types.workspace = true
 wezterm-font.workspace = true
 wezterm-input-types.workspace = true
+filedescriptor.workspace = true
 
 [target.'cfg(target_os="macos")'.dependencies]
 cgl.workspace = true
