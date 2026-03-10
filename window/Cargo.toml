@@ -61,5 +61,8 @@ plist.workspace = true
 shlex.workspace = true
 
 [target.'cfg(target_os="linux")'.dependencies]
-xkbcommon = { version = "0.9", optional = true }
+xkbcommon = "0.9"
 wayland-egl = { workspace = true, optional = true }
+
+# X11 dependencies
+xcb = { version = "1.7", features = ["render", "randr", "dri2", "xkb", "xlib_xcb", "present"] }
