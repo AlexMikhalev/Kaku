@@ -10,7 +10,5 @@ pub use self::linux::*;
 
 #[cfg(target_os = "linux")]
 pub mod x11;
-#[cfg(target_os = "linux")]
-pub use self::x11::*;
 
 pub mod parameters;

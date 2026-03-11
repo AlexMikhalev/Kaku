@@ -1,54 +1,199 @@
 //! X11 Event handling
 
-use xcb::{x::EventMask, Event};
+use std::rc::Rc;
+
+use xcb::x::{Atom, ClientMessageData, KeyButMask, Window as XcbWindow};
+use xcb::Event;
+use xcb::Xid;
 
 use crate::os::x11::connection::XConnection;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum X11Event {
-    KeyPress(u32, u32),
-    KeyRelease(u32, u32),
-    ButtonPress(u32, i16, i16),
-    ButtonRelease(u32, i16, i16),
-    MotionNotify(i16, i16),
-    Expose(u32, u32),
-    FocusIn,
-    FocusOut,
-    ConfigureNotify(i32, i32, u32, u32),
-    EnterNotify,
-    LeaveNotify,
-    Destroy,
+    KeyPress {
+        window: XcbWindow,
+        detail: u8,
+        state: KeyButMask,
+    },
+    KeyRelease {
+        window: XcbWindow,
+        detail: u8,
+        state: KeyButMask,
+    },
+    ButtonPress {
+        window: XcbWindow,
+        detail: u8,
+        state: KeyButMask,
+        x: i16,
+        y: i16,
+        root_x: i16,
+        root_y: i16,
+    },
+    ButtonRelease {
+        window: XcbWindow,
+        detail: u8,
+        state: KeyButMask,
+        x: i16,
+        y: i16,
+        root_x: i16,
+        root_y: i16,
+    },
+    MotionNotify {
+        window: XcbWindow,
+        state: KeyButMask,
+        x: i16,
+        y: i16,
+        root_x: i16,
+        root_y: i16,
+    },
+    Expose {
+        window: XcbWindow,
+        width: u32,
+        height: u32,
+    },
+    FocusIn {
+        window: XcbWindow,
+    },
+    FocusOut {
+        window: XcbWindow,
+    },
+    ConfigureNotify {
+        window: XcbWindow,
+        x: i32,
+        y: i32,
+        width: u32,
+        height: u32,
+    },
+    EnterNotify {
+        window: XcbWindow,
+        x: i16,
+        y: i16,
+        root_x: i16,
+        root_y: i16,
+    },
+    LeaveNotify {
+        window: XcbWindow,
+        x: i16,
+        y: i16,
+        root_x: i16,
+        root_y: i16,
+    },
+    CloseRequested {
+        window: XcbWindow,
+    },
+    Destroy {
+        window: XcbWindow,
+    },
     Unknown,
 }
 
 impl X11Event {
-    pub fn from_xcb_event(event: &Event, window: xcb::x::Window) -> Self {
+    pub fn from_xcb_event(
+        event: &Event,
+        wm_protocols: Option<Atom>,
+        wm_delete_window: Option<Atom>,
+    ) -> Self {
         match event {
             Event::X(xevent) => match xevent {
-                xcb::x::Event::KeyPress(e) => X11Event::KeyPress(e.detail(), e.sequence() as u32),
-                xcb::x::Event::KeyRelease(e) => {
-                    X11Event::KeyRelease(e.detail(), e.sequence() as u32)
+                xcb::x::Event::KeyPress(e) => X11Event::KeyPress {
+                    window: e.event(),
+                    detail: e.detail(),
+                    state: e.state(),
+                },
+                xcb::x::Event::KeyRelease(e) => X11Event::KeyRelease {
+                    window: e.event(),
+                    detail: e.detail(),
+                    state: e.state(),
+                },
+                xcb::x::Event::ButtonPress(e) => X11Event::ButtonPress {
+                    window: e.event(),
+                    detail: e.detail(),
+                    state: e.state(),
+                    x: e.event_x(),
+                    y: e.event_y(),
+                    root_x: e.root_x(),
+                    root_y: e.root_y(),
+                },
+                xcb::x::Event::ButtonRelease(e) => X11Event::ButtonRelease {
+                    window: e.event(),
+                    detail: e.detail(),
+                    state: e.state(),
+                    x: e.event_x(),
+                    y: e.event_y(),
+                    root_x: e.root_x(),
+                    root_y: e.root_y(),
+                },
+                xcb::x::Event::MotionNotify(e) => X11Event::MotionNotify {
+                    window: e.event(),
+                    state: e.state(),
+                    x: e.event_x(),
+                    y: e.event_y(),
+                    root_x: e.root_x(),
+                    root_y: e.root_y(),
+                },
+                xcb::x::Event::Expose(e) => X11Event::Expose {
+                    window: e.window(),
+                    width: e.width() as u32,
+                    height: e.height() as u32,
+                },
+                xcb::x::Event::FocusIn(e) => X11Event::FocusIn { window: e.event() },
+                xcb::x::Event::FocusOut(e) => X11Event::FocusOut { window: e.event() },
+                xcb::x::Event::ConfigureNotify(e) => X11Event::ConfigureNotify {
+                    window: e.window(),
+                    x: e.x() as i32,
+                    y: e.y() as i32,
+                    width: e.width() as u32,
+                    height: e.height() as u32,
+                },
+                xcb::x::Event::EnterNotify(e) => X11Event::EnterNotify {
+                    window: e.event(),
+                    x: e.event_x(),
+                    y: e.event_y(),
+                    root_x: e.root_x(),
+                    root_y: e.root_y(),
+                },
+                xcb::x::Event::LeaveNotify(e) => X11Event::LeaveNotify {
+                    window: e.event(),
+                    x: e.event_x(),
+                    y: e.event_y(),
+                    root_x: e.root_x(),
+                    root_y: e.root_y(),
+                },
+                xcb::x::Event::DestroyNotify(e) => X11Event::Destroy { window: e.window() },
+                xcb::x::Event::ClientMessage(e)
+                    if is_wm_delete_window_message(
+                        e.r#type(),
+                        e.data(),
+                        wm_protocols,
+                        wm_delete_window,
+                    ) =>
+                {
+                    X11Event::CloseRequested { window: e.window() }
                 }
-                xcb::x::Event::ButtonPress(e) => {
-                    X11Event::ButtonPress(e.detail(), e.event_x(), e.event_y())
-                }
-                xcb::x::Event::ButtonRelease(e) => {
-                    X11Event::ButtonRelease(e.detail(), e.event_x(), e.event_y())
-                }
-                xcb::x::Event::MotionNotify(e) => X11Event::MotionNotify(e.event_x(), e.event_y()),
-                xcb::x::Event::Expose(e) => X11Event::Expose(e.width(), e.height()),
-                xcb::x::Event::FocusIn(_) => X11Event::FocusIn,
-                xcb::x::Event::FocusOut(_) => X11Event::FocusOut,
-                xcb::x::Event::ConfigureNotify(e) => {
-                    X11Event::ConfigureNotify(e.x(), e.y(), e.width(), e.height())
-                }
-                xcb::x::Event::EnterNotify(_) => X11Event::EnterNotify,
-                xcb::x::Event::LeaveNotify(_) => X11Event::LeaveNotify,
-                xcb::x::Event::DestroyNotify(_) => X11Event::Destroy,
                 _ => X11Event::Unknown,
             },
             _ => X11Event::Unknown,
         }
+    }
+}
+
+pub fn is_wm_delete_window_message(
+    message_type: Atom,
+    data: ClientMessageData,
+    wm_protocols: Option<Atom>,
+    wm_delete_window: Option<Atom>,
+) -> bool {
+    let (Some(wm_protocols), Some(wm_delete_window)) = (wm_protocols, wm_delete_window) else {
+        return false;
+    };
+
+    if message_type != wm_protocols {
+        return false;
+    }
+
+    match data {
+        ClientMessageData::Data32(data) => data[0] == wm_delete_window.resource_id(),
+        _ => false,
     }
 }
 
@@ -63,17 +208,15 @@ impl X11EventLoop {
     }
 
     /// Run the event loop, calling callbacks for each event
-    pub fn run<F>(self, window: xcb::x::Window, mut callback: F)
+    pub fn run<F>(self, mut callback: F)
     where
         F: FnMut(X11Event),
     {
         loop {
-            // Wait for event
             if let Some(event) = self.connection.wait_for_event() {
-                let x11_event = X11Event::from_xcb_event(&event, window);
+                let x11_event = self.connection.decode_event(&event);
 
-                // Handle destroy specially - exit loop
-                if matches!(x11_event, X11Event::Destroy) {
+                if matches!(x11_event, X11Event::Destroy { .. }) {
                     break;
                 }
 
@@ -83,14 +226,14 @@ impl X11EventLoop {
     }
 
     /// Process pending events (non-blocking)
-    pub fn poll<F>(window: xcb::x::Window, mut callback: F)
+    pub fn poll<F>(&self, mut callback: F)
     where
         F: FnMut(X11Event),
     {
         while let Some(event) = self.connection.poll_for_event() {
-            let x11_event = X11Event::from_xcb_event(&event, window);
+            let x11_event = self.connection.decode_event(&event);
 
-            if matches!(x11_event, X11Event::Destroy) {
+            if matches!(x11_event, X11Event::Destroy { .. }) {
                 break;
             }
 

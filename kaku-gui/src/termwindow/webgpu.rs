@@ -223,7 +223,13 @@ impl WebGpuState {
         dimensions: Dimensions,
         config: &ConfigHandle,
     ) -> anyhow::Result<Self> {
-        let backends = wgpu::Backends::all();
+        let is_wayland_session =
+            cfg!(target_os = "linux") && std::env::var_os("WAYLAND_DISPLAY").is_some();
+        let backends = if cfg!(target_os = "linux") {
+            wgpu::Backends::all()
+        } else {
+            wgpu::Backends::all()
+        };
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             backends,
             ..Default::default()
@@ -288,20 +294,32 @@ impl WebGpuState {
         }
 
         if adapter.is_none() {
-            adapter = Some(
-                instance
-                    .request_adapter(&wgpu::RequestAdapterOptions {
-                        power_preference: match config.webgpu_power_preference {
-                            WebGpuPowerPreference::HighPerformance => {
-                                wgpu::PowerPreference::HighPerformance
-                            }
-                            WebGpuPowerPreference::LowPower => wgpu::PowerPreference::LowPower,
-                        },
-                        compatible_surface: Some(&surface),
-                        force_fallback_adapter: config.webgpu_force_fallback_adapter,
-                    })
-                    .await?,
-            );
+            let request_options = wgpu::RequestAdapterOptions {
+                power_preference: match config.webgpu_power_preference {
+                    WebGpuPowerPreference::HighPerformance => {
+                        wgpu::PowerPreference::HighPerformance
+                    }
+                    WebGpuPowerPreference::LowPower => wgpu::PowerPreference::LowPower,
+                },
+                compatible_surface: Some(&surface),
+                force_fallback_adapter: config.webgpu_force_fallback_adapter,
+            };
+
+            let requested = instance.request_adapter(&request_options).await?;
+
+            if is_wayland_session && requested.get_info().backend == wgpu::Backend::Gl {
+                adapter = instance
+                    .enumerate_adapters(backends)
+                    .into_iter()
+                    .find(|candidate| {
+                        candidate.is_surface_supported(&surface)
+                            && candidate.get_info().backend != wgpu::Backend::Gl
+                    });
+            }
+
+            if adapter.is_none() {
+                adapter = Some(requested);
+            }
         }
 
         let adapter = adapter.ok_or_else(|| {
@@ -314,10 +332,25 @@ impl WebGpuState {
 
         let adapter_info = adapter.get_info();
         log::trace!("Using adapter: {adapter_info:?}");
+        let surface_supported = adapter.is_surface_supported(&surface);
         let caps = surface.get_capabilities(&adapter);
         log::trace!("caps: {caps:?}");
         let downlevel_caps = adapter.get_downlevel_capabilities();
         log::trace!("downlevel_caps: {downlevel_caps:?}");
+
+        if !surface_supported {
+            anyhow::bail!(
+                "selected adapter {} does not support the current surface",
+                adapter_info.name
+            );
+        }
+
+        if caps.formats.is_empty() {
+            anyhow::bail!(
+                "selected adapter {} reported no compatible surface formats",
+                adapter_info.name
+            );
+        }
 
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {

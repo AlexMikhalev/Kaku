@@ -45,6 +45,7 @@ split-debuginfo = "unpacked"
 [workspace.dependencies]
 ahash = "0.8"
 anyhow = "1.0"
+arboard = "3.6.1"
 assert_fs = "1.0.4"
 async-channel = "2.3"
 async-executor = "1.11"
@@ -275,7 +276,7 @@ wezterm-toast-notification = { path = "crates/wezterm-toast-notification" }
 wezterm-uds = { path = "crates/wezterm-uds" }
 wezterm-version = { path = "crates/wezterm-version" }
 # macOS-only: only compile Metal backend (removes Vulkan, DX12, GL)
-wgpu = { version = "25.0.2", default-features = false, features = ["metal", "wgsl"] }
+wgpu = { version = "25.0.2", default-features = false, features = ["metal", "vulkan", "gles", "wgsl"] }
 whoami = "1.5"
 winapi = "0.3.9"
 window = {path="window"}
